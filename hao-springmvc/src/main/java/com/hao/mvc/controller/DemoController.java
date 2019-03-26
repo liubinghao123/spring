@@ -3,6 +3,7 @@ package com.hao.mvc.controller;
 import com.hao.annotion.Autowired;
 import com.hao.annotion.Controller;
 import com.hao.annotion.RequestMapping;
+import com.hao.annotion.RequestParams;
 import com.hao.mvc.service.UserService;
 
 import javax.servlet.http.HttpServletRequest;
@@ -18,7 +19,7 @@ public class DemoController {
     private UserService userService;
 
     @RequestMapping("/test1")
-    public String test1(HttpServletRequest resquest, HttpServletResponse response,String name){
-       return name + "同学你好";
+    public String test1(HttpServletRequest resquest, HttpServletResponse response,@RequestParams(value = "name") String[] name){
+       return name[0] + "" + name[1]+ "同学你好";
     }
 }

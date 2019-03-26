@@ -1,9 +1,7 @@
 package com.hao.servlet;
 
-import com.hao.annotion.Autowired;
-import com.hao.annotion.Controller;
-import com.hao.annotion.RequestMapping;
-import com.hao.annotion.Service;
+import com.hao.annotion.*;
+import sun.misc.Request;
 
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
@@ -12,8 +10,10 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.net.URL;
 import java.util.*;
 
@@ -66,7 +66,6 @@ public class HDispatcherServlet extends HttpServlet {
                 if(!method.isAnnotationPresent(RequestMapping.class))continue;
                 String url = "/" + baseUrl + "/" + method.getAnnotation(RequestMapping.class).value();
                 url = url.replaceAll("/+","/");
-
                 HandlerMapping handlerMapping = new HandlerMapping();
                 handlerMapping.setInstance(instance);
                 handlerMapping.setUrl(url);
@@ -185,12 +184,43 @@ public class HDispatcherServlet extends HttpServlet {
                 resp.getWriter().write("404");
                 return;
             }
-            String name = req.getParameter("name");
-            Object obj = targetMapping.getMethod().invoke(targetMapping.getInstance(),req,resp,name);
+            //处理方法参数
+            Method method = targetMapping.getMethod();
+            Object[]  parameters = analyParameters(req,resp,method);
+            Object obj = method.invoke(targetMapping.getInstance(),parameters);
             resp.getWriter().write(obj.toString());
         }catch (Exception e ){
+            e.printStackTrace();
             resp.getWriter().write("505");
         }
+    }
+
+    private Object[] analyParameters(HttpServletRequest req, HttpServletResponse resp, Method method) {
+        List<Object> parameters = new ArrayList<>();
+        for(Parameter parameter : method.getParameters()){
+            if(parameter.getType() == HttpServletRequest.class){
+                parameters.add(req);
+            }
+            else if(parameter.getType() == HttpServletResponse.class){
+                parameters.add(resp);
+            }
+            else if(parameter.getType() == String.class){
+                RequestParams rParams = parameter.getAnnotation(RequestParams.class);
+                String pName = rParams==null || "".equals(rParams.value()) ? parameter.getName() : rParams.value();
+                String value = req.getParameter(pName);
+                //TODO 是否指定必须传入
+                parameters.add(value);
+            }else if(parameter.getType().isArray()){
+                if(parameter.getType() == String[].class){
+                    RequestParams rParams = parameter.getAnnotation(RequestParams.class);
+                    String pName = rParams==null || "".equals(rParams.value()) ? parameter.getName() : rParams.value();
+                    String[] value = (String[])req.getParameterMap().get(pName);
+                    //TODO 是否指定必须传入
+                    parameters.add(value);
+                }
+            }
+        }
+        return parameters.toArray();
     }
 
     @Override
@@ -219,6 +249,7 @@ public class HDispatcherServlet extends HttpServlet {
         private String url;
         private Method method;
         private Object instance;
+        private Object[] params;
 
         public String getUrl() {
             return url;
@@ -242,6 +273,14 @@ public class HDispatcherServlet extends HttpServlet {
 
         public void setInstance(Object instance) {
             this.instance = instance;
+        }
+
+        public Object[] getParams() {
+            return params;
+        }
+
+        public void setParams(Object[] params) {
+            this.params = params;
         }
     }
 }
