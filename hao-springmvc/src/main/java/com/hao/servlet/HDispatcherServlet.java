@@ -24,8 +24,13 @@ import java.util.*;
 public class HDispatcherServlet extends HttpServlet {
     private static final String PROPERTIES_NAME = "application.properties";
     private Properties properties = new Properties();
+    //所有类的名称
     private List<String> classNames = new ArrayList<String>();
+    //bean容器
     private Map<String,Object> ioc = new HashMap<String,Object>();
+    //接口对象所有的实现类
+    private Map<String,Map<String,Object>> implementsSubClass = new HashMap<String, Map<String, Object>>();
+    //url、method、instance对应关系集合
     private List<HandlerMapping> mappings = new ArrayList<HandlerMapping>();
 
     @Override
@@ -72,17 +77,43 @@ public class HDispatcherServlet extends HttpServlet {
 
     }
     //注入依赖
-    private void doAutowired() throws IllegalAccessException {
+    private void doAutowired() throws Exception {
         for (Map.Entry<String, Object> entry : ioc.entrySet()) {
             Object instance = entry.getValue();
             Field[] fields = instance.getClass().getDeclaredFields();
             for(Field field : fields){
                 if(field.isAnnotationPresent(Autowired.class)){
                     String required = field.getAnnotation(Autowired.class).required();
-                    required = "".equals(required) ? firstToLowerCase(field.getName()) : required;
-                    if(ioc.containsKey(required)){
+                    required = "".equals(required) ? firstToLowerCase(field.getType().getSimpleName()) : required;
+                    if(ioc.containsKey(required) || implementsSubClass.containsKey(required)){
                         field.setAccessible(true);
-                        field.set(instance,ioc.get(required));
+                        /**
+                         *  如果是接口，那么根据required从implementsSubClass获取到对应的实现类
+                         *  如果required的名称和clazz.getSimpleName相等（没有指定具体的实现类），如果存在多个实现类，抛出异常，只存在一个就取这个实现类
+                         *  如果指定了required名称就直接从集合获取
+                         *
+                         */
+                        if(field.getType().isInterface()){
+                            String interfaceName = firstToLowerCase(field.getType().getSimpleName());
+                            Object subClassInstance = null;
+                            if(implementsSubClass.containsKey(interfaceName)){
+                                Map<String,Object> subClass = implementsSubClass.get(interfaceName);
+                                if(required.equals(interfaceName)){
+                                    if(subClass.size() > 1)
+                                        throw new Exception("存在多个实现类，请指定一个注入");
+                                    if(subClass.size() > 0){
+                                        for (Map.Entry<String, Object> entry2 : subClass.entrySet()) {
+                                            subClassInstance = entry2.getValue();
+                                        }
+                                    }
+                                }else{
+                                    subClassInstance = subClass.get(required);
+                                }
+                            }
+                            field.set(instance,subClassInstance);
+                        }else{
+                            field.set(instance,ioc.get(required));
+                        }
                     }
                 }
             }
@@ -98,7 +129,20 @@ public class HDispatcherServlet extends HttpServlet {
                     value = "".equals(value) ? firstToLowerCase(clazz.getSimpleName()) : value;
                     if(ioc.containsKey(value))
                         throw new Exception("bean name 不允许重复，bean ：" + value);
+                    Object instance = clazz.newInstance();
                     ioc.put(value,clazz.newInstance());
+                    //如果实现了接口，则将该实现类和父类接口的对应关系存放到集合中
+                    for(Class<?> inter : clazz.getInterfaces()){
+                        String interfaceName = firstToLowerCase(inter.getSimpleName());
+                        if(implementsSubClass.containsKey(interfaceName)){
+                            Map<String,Object> subClass = implementsSubClass.get(interfaceName);
+                            subClass.put(firstToLowerCase(clazz.getSimpleName()),instance);
+                        }else{
+                            Map<String,Object> subClass = new HashMap<String, Object>();
+                            subClass.put(value,instance);
+                            implementsSubClass.put(interfaceName,subClass);
+                        }
+                    }
                 }
             }
         }
