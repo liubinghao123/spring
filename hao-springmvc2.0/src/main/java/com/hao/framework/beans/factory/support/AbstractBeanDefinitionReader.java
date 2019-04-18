@@ -10,7 +10,7 @@ import java.io.InputStream;
 public abstract class AbstractBeanDefinitionReader implements BeanDefinitionReader{
    @Override
    public int loadBeanDefinitions(String location) {
-      InputStream is = this.getClass().getResourceAsStream("/" + location);
+      InputStream is = this.getClass().getClassLoader().getResourceAsStream(location.replace("classpath:",""));
       Resource resource = new Resource();
       resource.setInputStream(is);
       return this.loadBeanDefinitions(resource);

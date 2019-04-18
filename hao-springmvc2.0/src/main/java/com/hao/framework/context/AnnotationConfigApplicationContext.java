@@ -9,6 +9,7 @@ import com.hao.framework.context.support.AbstractApplicationContext;
  * Created by Keeper on 2019-04-12
  */
 public class AnnotationConfigApplicationContext extends AbstractApplicationContext {
+    private BeanDefinitionReader reader;
     private String[] locations;
     public AnnotationConfigApplicationContext(String... locations){
         this.locations = locations;
@@ -21,7 +22,8 @@ public class AnnotationConfigApplicationContext extends AbstractApplicationConte
 
     @Override
     public void  loadBeanDefinitions(DefaultListableBeanFactory factory) {
-        loadBeanDefinitions(new AnnotationBeanDefinitionReader(factory));
+        this.reader = new AnnotationBeanDefinitionReader(factory);
+        loadBeanDefinitions(reader);
         //创建非延迟加载的beanDefinition实例
         try {
             createBean(factory);
@@ -49,5 +51,8 @@ public class AnnotationConfigApplicationContext extends AbstractApplicationConte
         return null;
     }
 
+    public BeanDefinitionReader getReader() {
+        return reader;
+    }
 
 }

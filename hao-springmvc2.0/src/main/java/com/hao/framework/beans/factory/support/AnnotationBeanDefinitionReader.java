@@ -17,7 +17,7 @@ public class AnnotationBeanDefinitionReader extends AbstractBeanDefinitionReader
     private final BeanDefinitionRegistry registry;
 
     private final String SCANN_PACKAGE = "scan_package";
-    private Properties properties = new Properties();
+    private Properties config = new Properties();
     private List<String> classNames = new ArrayList<>();
 
     public AnnotationBeanDefinitionReader(DefaultListableBeanFactory beanFactory) {
@@ -43,8 +43,8 @@ public class AnnotationBeanDefinitionReader extends AbstractBeanDefinitionReader
 
     public int doLoadBeanDefinitions(Resource resource){
         try {
-            properties.load(resource.getInputStream());
-            this.doScanner(properties.getProperty(SCANN_PACKAGE));
+            config.load(resource.getInputStream());
+            this.doScanner(config.getProperty(SCANN_PACKAGE));
 
             if(classNames.size() == 0) return 0;
             List<BeanDefinition> beanDefinitions = new ArrayList<>();
@@ -83,5 +83,9 @@ public class AnnotationBeanDefinitionReader extends AbstractBeanDefinitionReader
         char[] cs = name.toCharArray();
         cs[0] += 32;
         return String.valueOf(cs);
+    }
+
+    public Properties getConfig() {
+        return config;
     }
 }

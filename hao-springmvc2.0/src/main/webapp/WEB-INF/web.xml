@@ -6,10 +6,10 @@
   <display-name>Archetype Created Web Application</display-name>
   <servlet>
     <servlet-name>DispatcherServlet</servlet-name>
-    <servlet-class>com.hao.framework.webmvc.DispatcherServlet</servlet-class>
+    <servlet-class>com.hao.framework.web.servlet.DispatcherServlet</servlet-class>
     <init-param>
-      <param-name>application.properties</param-name>
-      <param-value>application.properties</param-value>
+      <param-name>contextConfigLocation</param-name>
+      <param-value>classpath:application.properties</param-value>
     </init-param>
   </servlet>
   <servlet-mapping>
