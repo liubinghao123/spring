@@ -88,4 +88,8 @@ public class AnnotationBeanDefinitionReader extends AbstractBeanDefinitionReader
     public Properties getConfig() {
         return config;
     }
+
+    public List<String> getClassNames() {
+        return classNames;
+    }
 }

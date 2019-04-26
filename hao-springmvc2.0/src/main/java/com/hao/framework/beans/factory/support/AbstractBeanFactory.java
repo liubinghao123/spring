@@ -1,14 +1,26 @@
 package com.hao.framework.beans.factory.support;
 
+import com.hao.framework.aop.framework.*;
+import com.hao.framework.aop.framework.autoproxy.AdvisorAutoProxyCreator;
+import com.hao.framework.aop.framework.stereotype.After;
+import com.hao.framework.aop.framework.stereotype.Aspect;
+import com.hao.framework.aop.framework.stereotype.Before;
+import com.hao.framework.aop.framework.stereotype.Pointcut;
 import com.hao.framework.beans.BeanWrapper;
 import com.hao.framework.beans.BeanWrapperImpl;
 import com.hao.framework.beans.config.BeanDefinition;
 import com.hao.framework.beans.factory.BeanFactory;
 import com.hao.framework.beans.factory.DefaultListableBeanFactory;
 import com.hao.framework.beans.factory.ObjectFactory;
+import com.hao.framework.beans.factory.config.BeanPostProcessor;
+import com.hao.framework.context.AnnotationConfigApplicationContext;
 import com.hao.framework.stereotype.Autowired;
+import com.hao.test.A;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -21,6 +33,7 @@ public abstract class AbstractBeanFactory implements BeanFactory, BeanDefinition
     private Map<String,Object> singleObjects = new ConcurrentHashMap<>();
     private Map<String,Object> earlySingleObejcts = new ConcurrentHashMap<>();
     private Map<String, ObjectFactory<?>> singleFactories = new ConcurrentHashMap<>();
+    private List<BeanPostProcessor> beanPostProcessors = new ArrayList<>();
 
 
     protected void createBean(DefaultListableBeanFactory defaultListableBeanFactory)throws Exception{
@@ -37,6 +50,7 @@ public abstract class AbstractBeanFactory implements BeanFactory, BeanDefinition
         if(factoryBeanInstanceCache.containsKey(beanDefinition.getFactoryBeanName())){
             beanWrapper = factoryBeanInstanceCache.get(beanDefinition.getFactoryBeanName());
         }else{
+            //创建BeanWrapper
             beanWrapper = doCreateBean(beanDefinition);
             final Object wrapperInstance = beanWrapper.getWrapperInstance();
             factoryBeanInstanceCache.put(beanDefinition.getFactoryBeanName(),beanWrapper);
@@ -44,9 +58,69 @@ public abstract class AbstractBeanFactory implements BeanFactory, BeanDefinition
                 return wrapperInstance;
             });
         }
+        Object exposedObject = beanWrapper.getWrapperInstance();
         //依赖注入
         populateBean(beanDefinition.getFactoryBeanName(),beanDefinition,beanWrapper);
-        return beanWrapper.getWrapperInstance();
+
+        exposedObject = initializeBean(beanDefinition.getFactoryBeanName(),exposedObject,beanDefinition);
+        return exposedObject;
+    }
+
+    private  Object initializeBean(String beanName, Object exposedObject, BeanDefinition beanDefinition){
+        //暂时处理后置处理器
+        try {
+            return applyBeanPostProcessorsAfterInitialization(exposedObject,beanName);
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        return exposedObject;
+    }
+
+    private Object applyBeanPostProcessorsAfterInitialization(Object exitsBean, String beanName) throws Exception {
+        Object result = exitsBean;
+        for(BeanPostProcessor beanPostProcessor : getBeanPostProcessor()){
+            Object currentObject = beanPostProcessor.postProcessAfterInitialization(result,beanName);
+            if(currentObject == null){
+                return result;
+            }
+            result = currentObject;
+        }
+        return result;
+    }
+    //手动注册
+    private BeanPostProcessor[] getBeanPostProcessor() {
+        try {
+            if(!beanPostProcessors.isEmpty()){
+                return (BeanPostProcessor[]) beanPostProcessors.toArray();
+            }
+            AnnotationConfigApplicationContext context = (AnnotationConfigApplicationContext) this;
+            AnnotationBeanDefinitionReader reader = (AnnotationBeanDefinitionReader) context.getReader();
+
+            for(String className : reader.getClassNames()){
+                Class<?> clazz = Class.forName(className);
+                List<Advisor> advisors = new ArrayList<>();
+                if(clazz.isAnnotationPresent(Aspect.class)&&clazz.isAnnotationPresent(Pointcut.class)){
+                    //封装advisor
+                    Method[] methods = clazz.getDeclaredMethods();
+                    for(Method method : methods){
+                        Advise advise = null;
+                        if(method.isAnnotationPresent(Before.class)){
+                            advise = new BeforeAdvise(method);
+                        }else if(method.isAnnotationPresent(After.class)){
+                            advise = new AfterAdvise(method);
+                        }
+                        Advisor advisor = new PointcutAdvisor(null,advise);
+                        advisors.add(advisor);
+                    }
+                }
+                AdvisorAutoProxyCreator advisorAutoProxyCreator = new AdvisorAutoProxyCreator();
+                advisorAutoProxyCreator.setAdvisorList(advisors);
+                beanPostProcessors.add(advisorAutoProxyCreator);
+            }
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        return (BeanPostProcessor[]) beanPostProcessors.toArray();
     }
 
     private BeanWrapper doCreateBean(BeanDefinition beanDefinition)throws Exception {
